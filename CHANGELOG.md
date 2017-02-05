@@ -1,3 +1,26 @@
+<a name="1.5.11"></a>
+# 1.5.11 princely-quest (2017-01-13)
+
+
+## Bug Fixes
+- **$compile:** allow the usage of "$" in isolate scope property alias
+  ([e75fbc](https://github.com/angular/angular.js/commit/e75fbc494e6a0da6a9231b40bb0382431b62be07),
+  [#15586](https://github.com/angular/angular.js/issues/15586),
+  [#15594](https://github.com/angular/angular.js/issues/15594))
+- **angularInit:** allow auto-bootstraping from inline script
+  ([41aa91](https://github.com/angular/angular.js/commit/41aa9125b9aaf771addb250642f524a4e6f9d8d3),
+  [#15567](https://github.com/angular/angular.js/issues/15567),
+  [#15571](https://github.com/angular/angular.js/issues/15571))
+- **$resource:** delete `$cancelRequest()` in `toJSON()`
+  ([4f3858](https://github.com/angular/angular.js/commit/4f3858e7c371f87534397f45b9d002add33b00cc),
+  [#15244](https://github.com/angular/angular.js/issues/15244))
+- **$$cookieReader:** correctly handle forbidden access to `document.cookie`
+  ([6933cf](https://github.com/angular/angular.js/commit/6933cf64fe51f54b10d1639f2b95bab3c1178df9),
+  [#15523](https://github.com/angular/angular.js/issues/15523),
+  [#15532](https://github.com/angular/angular.js/issues/15532))
+
+
+
 <a name="1.6.1"></a>
 # 1.6.1 promise-rectification (2016-12-23)
 
@@ -149,6 +172,9 @@ consolidating all the changes shown in the previous 1.6.0 release candidates.**
     ([369fb7](https://github.com/angular/angular.js/commit/369fb7f4f73664bcdab0350701552d8bef6f605e))
   - don't throw for elements with missing `getAttribute`
     ([4e6c14](https://github.com/angular/angular.js/commit/4e6c14dcae4a9a30b3610a288ef8d20db47c4417))
+  - don't get/set properties when getting/setting boolean attributes
+    ([7ceb5f](https://github.com/angular/angular.js/commit/7ceb5f6fcc43d35d1b66c3151ce6a71c60309304),
+    [#14126](https://github.com/angular/angular.js/issues/14126))
   - don't remove a boolean attribute for `.attr(attrName, '')`
     ([3faf45](https://github.com/angular/angular.js/commit/3faf4505732758165083c9d21de71fa9b6983f4a))
   - remove the attribute for `.attr(attribute, null)`
@@ -626,6 +652,48 @@ elem.css('backgroundColor', 'blue');
 // Previous five versions are no longer equivalent but these two still are.
 var bgColor = elem.css('background-color');
 var bgColor = elem.css('backgroundColor');
+```
+
+- **[7ceb5f](https://github.com/angular/angular.js/commit/7ceb5f6fcc43d35d1b66c3151ce6a71c60309304)**: don't get/set properties when getting/setting boolean attributes
+
+Previously, all boolean attributes were reflected into the corresponding property when calling a
+setter and from the corresponding property when calling a getter, even on elements that don't treat
+those attributes in a special way. Now Angular doesn't do it by itself, but relies on browsers to
+know when to reflect the property. Note that this browser-level conversion differs between browsers;
+if you need to dynamically change the state of an element, you should modify the property, not the
+attribute. See https://jquery.com/upgrade-guide/1.9/#attr-versus-prop- for a more detailed
+description about a related change in jQuery 1.9.
+
+This change aligns jqLite with jQuery 3. To migrate the code follow the example below:
+
+Before:
+
+CSS:
+
+```css
+input[checked="checked"] { ... }
+```
+
+JS:
+
+```js
+elem1.attr('checked', 'checked');
+elem2.attr('checked', false);
+```
+
+After:
+
+CSS:
+
+```css
+input:checked { ... }
+```
+
+JS:
+
+```js
+elem1.prop('checked', true);
+elem2.prop('checked', false);
 ```
 
 - **[3faf45](https://github.com/angular/angular.js/commit/3faf4505732758165083c9d21de71fa9b6983f4a)**:
@@ -1828,6 +1896,7 @@ Please read the [Sandbox Removal Blog Post](http://angularjs.blogspot.com/2016/0
 - **jqLite:**
   - implement `jqLite(f)` as an alias to `jqLite(document).ready(f)` ([369fb7](https://github.com/angular/angular.js/commit/369fb7f4f73664bcdab0350701552d8bef6f605e))
   - don't throw for elements with missing `getAttribute` ([4e6c14](https://github.com/angular/angular.js/commit/4e6c14dcae4a9a30b3610a288ef8d20db47c4417))
+  - don't get/set properties when getting/setting boolean attributes ([7ceb5f](https://github.com/angular/angular.js/commit/7ceb5f6fcc43d35d1b66c3151ce6a71c60309304), [#14126](https://github.com/angular/angular.js/issues/14126))
   - don't remove a boolean attribute for `.attr(attrName, '')` ([3faf45](https://github.com/angular/angular.js/commit/3faf4505732758165083c9d21de71fa9b6983f4a))
   - remove the attribute for `.attr(attribute, null)` ([4e3624](https://github.com/angular/angular.js/commit/4e3624552284d0e725bf6262b2e468cd2c7682fa))
   - return `[]` for `.val()` on `<select multiple>` with no selection ([d882fd](https://github.com/angular/angular.js/commit/d882fde2e532216e7cf424495db1ccb5be1789f8))
@@ -2003,6 +2072,48 @@ elem.css('backgroundColor', 'blue');
 // Previous five versions are no longer equivalent but these two still are.
 var bgColor = elem.css('background-color');
 var bgColor = elem.css('backgroundColor');
+```
+
+- **[7ceb5f](https://github.com/angular/angular.js/commit/7ceb5f6fcc43d35d1b66c3151ce6a71c60309304)**: don't get/set properties when getting/setting boolean attributes
+
+Previously, all boolean attributes were reflected into the corresponding property when calling a
+setter and from the corresponding property when calling a getter, even on elements that don't treat
+those attributes in a special way. Now Angular doesn't do it by itself, but relies on browsers to
+know when to reflect the property. Note that this browser-level conversion differs between browsers;
+if you need to dynamically change the state of an element, you should modify the property, not the
+attribute. See https://jquery.com/upgrade-guide/1.9/#attr-versus-prop- for a more detailed
+description about a related change in jQuery 1.9.
+
+This change aligns jqLite with jQuery 3. To migrate the code follow the example below:
+
+Before:
+
+CSS:
+
+```css
+input[checked="checked"] { ... }
+```
+
+JS:
+
+```js
+elem1.attr('checked', 'checked');
+elem2.attr('checked', false);
+```
+
+After:
+
+CSS:
+
+```css
+input:checked { ... }
+```
+
+JS:
+
+```js
+elem1.prop('checked', true);
+elem2.prop('checked', false);
 ```
 
 - **[3faf45](https://github.com/angular/angular.js/commit/3faf4505732758165083c9d21de71fa9b6983f4a)**: don't remove a boolean attribute for `.attr(attrName, '')`

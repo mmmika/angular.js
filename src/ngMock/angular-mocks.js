@@ -37,10 +37,30 @@ angular.mock.$Browser = function() {
   self.$$lastUrl = self.$$url; // used by url polling fn
   self.pollFns = [];
 
-  // TODO(vojta): remove this temporary api
-  self.$$completeOutstandingRequest = angular.noop;
-  self.$$incOutstandingRequestCount = angular.noop;
+  // Testability API
 
+  var outstandingRequestCount = 0;
+  var outstandingRequestCallbacks = [];
+  self.$$incOutstandingRequestCount = function() { outstandingRequestCount++; };
+  self.$$completeOutstandingRequest = function(fn) {
+    try {
+      fn();
+    } finally {
+      outstandingRequestCount--;
+      if (!outstandingRequestCount) {
+        while (outstandingRequestCallbacks.length) {
+          outstandingRequestCallbacks.pop()();
+        }
+      }
+    }
+  };
+  self.notifyWhenNoOutstandingRequests = function(callback) {
+    if (outstandingRequestCount) {
+      outstandingRequestCallbacks.push(callback);
+    } else {
+      callback();
+    }
+  };
 
   // register url polling fn
 
@@ -65,6 +85,8 @@ angular.mock.$Browser = function() {
   self.deferredNextId = 0;
 
   self.defer = function(fn, delay) {
+    // Note that we do not use `$$incOutstandingRequestCount` or `$$completeOutstandingRequest`
+    // in this mock implementation.
     delay = delay || 0;
     self.deferredFns.push({time:(self.defer.now + delay), fn:fn, id: self.deferredNextId});
     self.deferredFns.sort(function(a, b) { return a.time - b.time;});
@@ -166,10 +188,6 @@ angular.mock.$Browser.prototype = {
 
   state: function() {
     return this.$$state;
-  },
-
-  notifyWhenNoOutstandingRequests: function(fn) {
-    fn();
   }
 };
 
@@ -937,7 +955,7 @@ angular.mock.animate = angular.module('ngAnimateMock', ['ng'])
  *
  * *NOTE*: This is not an injectable instance, just a globally available function.
  *
- * Method for serializing common angular objects (scope, elements, etc..) into strings.
+ * Method for serializing common AngularJS objects (scope, elements, etc..) into strings.
  * It is useful for logging objects to the console when debugging.
  *
  * @param {*} object - any object to turn into string.
@@ -1019,7 +1037,7 @@ angular.mock.dump = function(object) {
  * This mock implementation can be used to respond with static or dynamic responses via the
  * `expect` and `when` apis and their shortcuts (`expectGET`, `whenPOST`, etc).
  *
- * When an Angular application needs some data from a server, it calls the $http service, which
+ * When an AngularJS application needs some data from a server, it calls the $http service, which
  * sends the request to a real server using $httpBackend service. With dependency injection, it is
  * easy to inject $httpBackend mock (which has the same API as $httpBackend) and use it to verify
  * the requests and respond with some testing data without sending a request to a real server.
@@ -1295,9 +1313,8 @@ angular.mock.dump = function(object) {
       });
   ```
  */
-angular.mock.$HttpBackendProvider = function() {
-  this.$get = ['$rootScope', '$timeout', createHttpBackendMock];
-};
+angular.mock.$httpBackendDecorator =
+  ['$rootScope', '$timeout', '$delegate', createHttpBackendMock];
 
 /**
  * General factory function for $httpBackend mock.
@@ -1318,7 +1335,10 @@ function createHttpBackendMock($rootScope, $timeout, $delegate, $browser) {
       expectations = [],
       responses = [],
       responsesPush = angular.bind(responses, responses.push),
-      copy = angular.copy;
+      copy = angular.copy,
+      // We cache the original backend so that if both ngMock and ngMockE2E override the
+      // service the ngMockE2E version can pass through to the real backend
+      originalHttpBackend = $delegate.$$originalHttpBackend || $delegate;
 
   function createResponse(status, data, headers, statusText) {
     if (angular.isFunction(status)) return status;
@@ -1403,7 +1423,7 @@ function createHttpBackendMock($rootScope, $timeout, $delegate, $browser) {
           // if $browser specified, we do auto flush all requests
           ($browser ? $browser.defer : responsesPush)(wrapResponse(definition));
         } else if (definition.passThrough) {
-          $delegate(method, url, data, callback, headers, timeout, withCredentials, responseType, eventHandlers, uploadEventHandlers);
+          originalHttpBackend(method, url, data, callback, headers, timeout, withCredentials, responseType, eventHandlers, uploadEventHandlers);
         } else throw new Error('No response defined !');
         return;
       }
@@ -1879,6 +1899,8 @@ function createHttpBackendMock($rootScope, $timeout, $delegate, $browser) {
     responses.length = 0;
   };
 
+  $httpBackend.$$originalHttpBackend = originalHttpBackend;
+
   return $httpBackend;
 
 
@@ -2073,7 +2095,7 @@ function MockXhr() {
   this.abort = angular.noop;
 
   // This section simulates the events on a real XHR object (and the upload object)
-  // When we are testing $httpBackend (inside the angular project) we make partial use of this
+  // When we are testing $httpBackend (inside the AngularJS project) we make partial use of this
   // but store the events directly ourselves on `$$events`, instead of going through the `addEventListener`
   this.$$events = {};
   this.addEventListener = function(name, listener) {
@@ -2334,8 +2356,8 @@ angular.mock.$ComponentControllerProvider = ['$compileProvider',
  *
  * # ngMock
  *
- * The `ngMock` module provides support to inject and mock Angular services into unit tests.
- * In addition, ngMock also extends various core ng services such that they can be
+ * The `ngMock` module provides support to inject and mock AngularJS services into unit tests.
+ * In addition, ngMock also extends various core AngularJS services such that they can be
  * inspected and controlled in a synchronous manner within test code.
  *
  *
@@ -2376,7 +2398,6 @@ angular.module('ngMock', ['ng']).provider({
   $exceptionHandler: angular.mock.$ExceptionHandlerProvider,
   $log: angular.mock.$LogProvider,
   $interval: angular.mock.$IntervalProvider,
-  $httpBackend: angular.mock.$HttpBackendProvider,
   $rootElement: angular.mock.$RootElementProvider,
   $componentController: angular.mock.$ComponentControllerProvider
 }).config(['$provide', '$compileProvider', function($provide, $compileProvider) {
@@ -2384,6 +2405,7 @@ angular.module('ngMock', ['ng']).provider({
   $provide.decorator('$$rAF', angular.mock.$RAFDecorator);
   $provide.decorator('$rootScope', angular.mock.$RootScopeDecorator);
   $provide.decorator('$controller', createControllerDecorator($compileProvider));
+  $provide.decorator('$httpBackend', angular.mock.$httpBackendDecorator);
 }]);
 
 /**
@@ -2393,12 +2415,11 @@ angular.module('ngMock', ['ng']).provider({
  * @packageName angular-mocks
  * @description
  *
- * The `ngMockE2E` is an angular module which contains mocks suitable for end-to-end testing.
+ * The `ngMockE2E` is an AngularJS module which contains mocks suitable for end-to-end testing.
  * Currently there is only one mock present in this module -
  * the {@link ngMockE2E.$httpBackend e2e $httpBackend} mock.
  */
 angular.module('ngMockE2E', ['ng']).config(['$provide', function($provide) {
-  $provide.value('$httpBackend', angular.injector(['ng']).get('$httpBackend'));
   $provide.decorator('$httpBackend', angular.mock.e2e.$httpBackendDecorator);
 }]);
 
@@ -2962,12 +2983,6 @@ angular.mock.$RootScopeDecorator = ['$delegate', function($delegate) {
 
     annotatedFunctions.forEach(function(fn) {
       delete fn.$inject;
-    });
-
-    angular.forEach(currentSpec.$modules, function(module) {
-      if (module && module.$$hashKey) {
-        module.$$hashKey = undefined;
-      }
     });
 
     currentSpec.$injector = null;

@@ -143,11 +143,12 @@
 
     /* apis.js */
     "hashKey": false,
-    "HashMap": false,
+    "NgMapShim": false,
 
     /* urlUtils.js */
     "urlResolve": false,
     "urlIsSameOrigin": false,
+    "urlIsSameOriginAsBaseUrl": true,
 
     /* karma */
     "dump": false,

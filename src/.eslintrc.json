@@ -150,11 +150,12 @@
 
     /* apis.js */
     "hashKey": false,
-    "HashMap": false,
+    "NgMap": false,
 
     /* urlUtils.js */
     "urlResolve": false,
     "urlIsSameOrigin": false,
+    "urlIsSameOriginAsBaseUrl": false,
 
     /* ng/controller.js */
     "identifierForController": false,
